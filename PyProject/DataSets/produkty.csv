@@ -1,0 +1,6 @@
+id_produktu,nazwa,kategoria,cena_netto,vat,ilosc_magazynowa
+101,Laptop Dell Inspiron,Elektronika,3200.00,23,25
+102,Słuchawki JBL Tune 500,Elektronika,120.00,23,100
+103,Biurko gamingowe GAMER PRO,Meble,750.00,23,10
+104,Fotel ergonomiczny PRO-X,Meble,640.00,23,15
+105,Książka "Python od podstaw",Książki,49.99,5,200

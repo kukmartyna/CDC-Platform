@@ -1,0 +1,6 @@
+id_zamowienia,id_klienta,data_zamowienia,kwota_brutto,status
+5001,1,2023-01-10,3936.00,Zrealizowane
+5002,2,2023-01-12,147.60,Anulowane
+5003,1,2023-02-05,795.00,W trakcie
+5004,3,2023-02-10,787.20,Zrealizowane
+5005,4,2023-02-18,52.49,Zrealizowane

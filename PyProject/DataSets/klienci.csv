@@ -1,0 +1,6 @@
+id_klienta,imie,nazwisko,email,telefon,data_rejestracji
+1,Anna,Kowalska,anna.kowalska@example.com,600123456,2022-01-15
+2,Piotr,Nowak,piotr.nowak@example.com,601234567,2022-03-22
+3,Magda,Wojcik,magda.wojcik@example.com,602345678,2022-07-09
+4,Tomasz,Zielinski,tomasz.zielinski@example.com,603456789,2022-10-05
+5,Katarzyna,Lis,katarzyna.lis@example.com,604567890,2023-02-12

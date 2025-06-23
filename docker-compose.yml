@@ -1,0 +1,130 @@
+networks:
+  default:
+    driver: bridge
+
+services:
+  pyproject:
+    image: martynakuk/mini-data-platform:pyproject
+    build:
+      context: PyProject
+      dockerfile: Dockerfile
+    networks:
+      - default
+    volumes:
+      - ./PyProject:/usr/app
+    depends_on:
+      - postgres
+      - connect
+
+  consumer1:
+    image: martynakuk/mini-data-platform:consumer1
+    build:
+      context: KafkaConsumer
+      dockerfile: Dockerfile
+    networks:
+      - default
+    volumes:
+      - ./KafkaConsumer:/usr/app
+    depends_on:
+      - kafka
+
+  postgres:
+    image: postgres:14.7
+    command: |
+      postgres 
+      -c wal_level=logical
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    networks:
+      - default
+    ports:
+      - 5432:5432
+
+  kafka:
+    image: quay.io/debezium/kafka
+    environment:
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LISTENERS: INTERNAL://kafka:9092,CONTROLLER://kafka:9093,EXTERNAL://0.0.0.0:9099
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://kafka:9099
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_BROKER_ID: 1
+      NODE_ID: 1
+      CLUSTER_ID: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - default
+    ports:
+      - 9099:9099
+
+  connect:
+    image: quay.io/debezium/connect
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      CONNECT_TOPIC_CREATION_ENABLE: "true"
+      CONNECT_PRODUCER_COMPRESSION_TYPE: snappy
+      CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: 'http://schemareg:8081'
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: 'http://schemareg:8081'
+      CONNECT_INTERNAL_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_INTERNAL_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_EXACTLY_ONCE_SOURCE_SUPPORT: enabled
+      CONNECT_ENABLE_DEBEZIUM_KC_REST_EXTENSION: "true"
+      CONNECT_ENABLE_DEBEZIUM_SCRIPTING: "true"
+      GROUP_ID: 2
+      CONFIG_STORAGE_TOPIC: dbz_connect_dev_configs
+      OFFSET_STORAGE_TOPIC: dbz_connect_dev_offsets
+      STATUS_STORAGE_TOPIC: dbz_connect_dev_statuses
+    networks:
+      - default
+    ports:
+      - 8083:8083
+    volumes:
+      - ./jars:/kafka/connect/libs
+    depends_on:
+      - kafka
+      - postgres
+
+  schemareg:
+    image: confluentinc/cp-schema-registry
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_HOST_NAME: schemareg
+      SCHEMA_REGISTRY_LISTENERS: http://schemareg:8081
+    networks:
+      - default
+    ports:
+      - 8081:8081
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    environment:
+      AUTH_TYPE: LOGIN_FORM
+      SPRING_SECURITY_USER_NAME: kafka
+      SPRING_SECURITY_USER_PASSWORD: Password123
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schemareg:8081
+      KAFKA_CLUSTERS_0_NAME: CDC
+    networks:
+      - default
+    ports:
+      - 8080:8080
+
+  minio:
+    image: quay.io/minio/minio
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password
+    networks:
+      - default
+    ports:
+      - 9000:9000
+      - 9001:9001
+    command: server /data --console-address ":9001"
