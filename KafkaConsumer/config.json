@@ -1,0 +1,14 @@
+[
+  {
+    "topic_name": "MDP.public.klienci",
+    "schema_id": 1
+  },
+  {
+    "topic_name": "MDP.public.produkty",
+    "schema_id": 2
+  },
+  {
+    "topic_name": "MDP.public.zamowienia",
+    "schema_id": 3
+  }
+]

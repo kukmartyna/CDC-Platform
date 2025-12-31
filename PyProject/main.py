@@ -40,6 +40,7 @@ validate_envs()
 
 
 def get_connection():
+    print("Connecting to database...")
     connection_string = 'postgresql+psycopg2://{username}:{password}@{host}:{port}/{database}'.format(
         username=DATABASE_USERNAME,
         password=DATABASE_PASSWORD,

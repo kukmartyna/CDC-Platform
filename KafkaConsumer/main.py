@@ -1,14 +1,11 @@
 import json
 import os
-from io import BytesIO
-
 import boto3
-import fastavro
-import pandas as pd
 import requests
+
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, pandas_udf
-from pyspark.sql.types import StringType
+from pyspark.sql.functions import col, expr
+from pyspark.sql.avro.functions import from_avro
 from dotenv import load_dotenv
 
 
@@ -78,10 +75,10 @@ def get_spark():
     return spark
 
 
-def load_kafka_dataframe(spark):
+def load_kafka_dataframe(spark, topic):
     kafka_options = {
         'kafka.bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS,  # 'kafka:9092'
-        'subscribePattern': rf'{TOPIC_PREFIX}.{SCHEMA_NAME}.*',
+        'subscribe': topic,
         "startingOffsets": "earliest"
     }
     return spark.readStream.format('kafka').options(**kafka_options).load()
@@ -93,51 +90,45 @@ def get_schema_by_id(schema_id):
     resp.raise_for_status()
 
     schema_str = resp.json()['schema']
-    try:
-        schema_dict = fastavro.parse_schema(eval(schema_str))
-    except:
-        schema_dict = fastavro.parse_schema(json.loads(schema_str))
-
-    return schema_dict
+    return schema_str
 
 
-def decode_avro_binary(payload):
-    if payload is None or len(payload) < 5:
-        return None
-    payload = bytes(payload)
-    if payload[0] != 0:
-        return None
-
-    schema_id = int.from_bytes(payload[1:5], byteorder='big')
-    schema = get_schema_by_id(schema_id)
-
-    try:
-        record = fastavro.schemaless_reader(BytesIO(payload[5:]), schema)
-        return str(record)
-    except Exception as e:
-        return f"Error: {e}"
-
-
-@pandas_udf(StringType())
-def decode_avro_udf(series: pd.Series) -> pd.Series:
-    return series.apply(decode_avro_binary)
+def load_config(path: str):
+    with open(path, 'r') as file:
+        return json.loads(file.read())
 
 
 def main():
+    dry_run = False
     ensure_minio_bucket()
     spark = get_spark()
+    configs = load_config('./config.json')
 
-    df = load_kafka_dataframe(spark)
-    df = df.withColumn("value", decode_avro_udf(col("value")))
+    for config in configs:
+        topic_name = config['topic_name']
+        schema = get_schema_by_id(config['schema_id'])
+        df = load_kafka_dataframe(spark, topic_name)
 
-    df.writeStream \
-        .format("delta") \
-        .option("checkpointLocation", CHECKPOINT_LOCATION) \
-        .option("path", S3A_PATH) \
-        .outputMode("append") \
-        .partitionBy("topic") \
-        .start() \
-        .awaitTermination()
+        df = df.select(
+            expr("substring(value, 6)").alias("payload"),
+        )
+
+        df = df.select(from_avro(col("payload"), schema).alias("data")).select(col('data.*'))
+
+        if dry_run:
+            (df.writeStream
+             .format("console")
+             .option("truncate", "false")
+             .start())
+        else:
+            (df.writeStream
+                .format("delta")
+                .option("checkpointLocation", f'{CHECKPOINT_LOCATION}/{topic_name}')
+                .option("path", f'{S3A_PATH}/{topic_name}')
+                .outputMode("append")
+                .start())
+
+    spark.streams.awaitAnyTermination()
 
 
 if __name__ == '__main__':
